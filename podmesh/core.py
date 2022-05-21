@@ -19,6 +19,9 @@ class Container:
     def id(self):
         return self._id
 
+    def __str__(self):
+        return f"Container(id={self.id}, name={self.name}, labels={self.labels}, remote={self.remote})"
+
 
 class PodMesh:
     def __init__(self, hook):
