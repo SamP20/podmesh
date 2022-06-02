@@ -75,5 +75,5 @@ jobs:
       - name: Cleanup test container
         if: always()
         run: |
-          podman container rm ${{ env.TEST_CONTAINER }}
+          podman container rm -f ${{ env.TEST_CONTAINER }}
 
