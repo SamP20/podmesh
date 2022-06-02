@@ -27,8 +27,8 @@ This is what the CI uses and doesn't require podman in podman, however you can o
 
 To run the non-podman tests:
 
-2. Build the `Containerfile.dev` image with `podman build -t podmesh-test -f Containerfile.dev`
-3. Run the non-podman tests with `podman run -it --rm podmesh-test pytest tests/` (TODO add test markers)
+2. Build the `Containerfile.dev` image with `podman build -t podmesh-test -f Containerfile.dev`. This only needs doing once
+3. Run the non-podman tests with `podman run --privileged -it --rm -v ./:/src/:rw podmesh-test pytest tests/` (TODO add test markers)
 
 The podman tests can be run locally. This will create a few containers during the test, but they should be cleaned up by the end. To run these:
 
