@@ -1,9 +1,18 @@
 # podmesh
 Mesh networking system for podman
 
+## Developing
+
+A devcontainer is provided to keep your environment isolated from the host when developing and running Podmesh.
+
+Also included is a `containerfile.dev` image which allows you to run multiple instances of Podmesh for testing meshing behaviour for example.
+The dev image can automatically use your current files by creating the following volume `-v ./:/src/:rw`. This image should also be run
+with the `--privileged` flag to allow the container to create wireguard interfaces. There is a limitation when using the `containerfile.dev`
+inside the devcontainer as any interfaces created will be visible in both containers.
+
 ## Testing
 
-There are two possible ways to run the tests: inside the devcontainer, or using the `Containerfile.test` image.
+There are two possible ways to run the tests: inside the devcontainer, or using either of the `Containerfile.*` images.
 
 ### Using the devcontainer
 
@@ -18,8 +27,7 @@ This is what the CI uses and doesn't require podman in podman, however you can o
 
 To run the non-podman tests:
 
-1. Build the `Containerfile` image with `podman build -t podmesh -f Containerfile`
-2. Build the `Containerfile.test` image with `podman build -t podmesh-test --build-arg FROM=podmesh -f Containerfile.test`
+2. Build the `Containerfile.dev` image with `podman build -t podmesh-test -f Containerfile.dev`
 3. Run the non-podman tests with `podman run -it --rm podmesh-test pytest tests/` (TODO add test markers)
 
 The podman tests can be run locally. This will create a few containers during the test, but they should be cleaned up by the end. To run these:

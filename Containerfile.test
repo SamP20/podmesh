@@ -1,5 +1,4 @@
-ARG FROM=podmesh:latest
-FROM $FROM
+FROM python:3.10-slim-buster
 COPY . /src
 WORKDIR /src
-RUN pip install -r requirements-test.txt
+RUN pip install . && pip install -r requirements-test.txt
