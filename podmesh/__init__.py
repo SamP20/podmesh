@@ -1,6 +1,7 @@
-from .core import PodMesh, Container
-import pluggy
+from .rpc import RpcConnection
+from .core import Hook
 
-hookimpl = pluggy.HookimplMarker("podmesh")
-
-__all__ = ["Container", "PodMesh", "hookimpl"]
+__all__ = [
+    "RpcConnection",
+    "Hook"
+]
