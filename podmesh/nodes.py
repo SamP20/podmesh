@@ -38,7 +38,7 @@ class Node:
 
 
 class WgManager:
-    def __init__(self, ip: str, networks: list[str], private_key: str, wg_ifname=WG_IFNAME):
+    def __init__(self, ip: str, networks: list[str], private_key: str, wg_ifname=WG_IFNAME, wg_listen_port=51820):
         self.networks = networks
         self.ndb = NDB()
         self.wg = WireGuard()
@@ -52,11 +52,12 @@ class WgManager:
                 .commit()
             )
 
-            self.wg.set(self.wg_ifname, private_key=private_key)
+            self.wg.set(self.wg_ifname, private_key=private_key, listen_port=wg_listen_port)
             logger.debug(f"Created wireguard interface {self.wg_ifname} with address {cluster_subnet}")
 
         iface = self.wg.info(self.wg_ifname)[0]
         self.pubkey: str = iface.get_attr("WGDEVICE_A_PUBLIC_KEY").decode(encoding="ascii")
+        logging.info(f"This node's wireguard public key is '{self.pubkey}'")
 
     def find_common_network(self,  wg_conninfo: WgConnectionInfo):
         our_networks = self.networks
@@ -103,8 +104,8 @@ class WgManager:
 
 
 class NodeManager:
-    def __init__(self, name: str, ip: str, networks: list[str], private_key: str, wg_ifname=WG_IFNAME):
-        self.wg = WgManager(ip, networks, private_key, wg_ifname=wg_ifname)
+    def __init__(self, name: str, ip: str, networks: list[str], private_key: str, **kwargs):
+        self.wg = WgManager(ip, networks, private_key, **kwargs)
 
         this_wg = WgConnectionInfo(self.wg.pubkey, ip, networks, {})
         self.this_node = Node(name, this_wg)
@@ -120,6 +121,7 @@ class NodeManager:
     def add_peer(self, wg_conninfo: WgConnectionInfo):
         self.wg.update_wg_peer(wg_conninfo)
         if self.compare_keys(wg_conninfo.pubkey, self.this_node.wg_conninfo.pubkey):
+            logger.info(f"Added peer to poll {wg_conninfo}")
             self.connections_to_poll.append(wg_conninfo)
 
     def compare_keys(self, k1, k2):
@@ -128,7 +130,7 @@ class NodeManager:
         return (k1_val - k2_val) & (1<<255) > 0
 
     def run_server(self, ip: str):
-        addr = ip.cidr.split("/")[0]
+        addr = ip.split("/")[0]
         server_socket = socket.create_server((addr, SERVER_PORT))
         def run_thread():
             logger.debug("Running server thread")
@@ -168,7 +170,7 @@ class NodeManager:
         rpc_conn.register_method("endpoint", Endpoint, self.update_endpoint)
 
         rpc_conn.runserver()
-        rpc_conn.send("idenfity", self.this_node)
+        rpc_conn.send("identify", self.this_node)
 
     def identify_connection(self, conn: RpcConnection, node: Node):
         logger.debug(f"RPC method 'identify' called from peer {node.name}")
@@ -204,7 +206,7 @@ class NodeManager:
 
     def update_endpoint(self, conn: RpcConnection, ep: Endpoint):
         logger.debug(f"Peer {conn.node.name} told us our endpoint {ep}")
-        wg_conninfo = self.this_node
+        wg_conninfo = self.this_node.wg_conninfo
         network = self.wg.find_common_network(conn.node.wg_conninfo)
         if network in wg_conninfo.endpoints:
             existing = wg_conninfo.endpoints[network]
@@ -216,18 +218,22 @@ class NodeManager:
         wg_conninfo.endpoints[network] = ep
 
         # Tell other nodes about our new endpoint
-        for conn in self.node_connections.values():
-            logger.debug(f"Notifying {conn.node.name} of our new endpoint")
-            conn.send("idenfity", self.this_node)
+        for rsp_conn in self.node_connections.values():
+            # Don't need to notify the connection that just notified us
+            if rsp_conn == conn:
+                continue
+            logger.debug(f"Notifying {rsp_conn.node.name} of our new endpoint")
+            rsp_conn.send("identify", self.this_node)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run node server only.")
     parser.add_argument("name", help="Node name.")
-    parser.add_argument("ip", help="Node subnet. Should be a slice of a /24.")
-    parser.add_argument("private-key", help="base64 wireguard private key of node.")
+    parser.add_argument("ip", help="Node subnet. Should be a slice of a /16.")
+    parser.add_argument("private_key", help="base64 wireguard private key of node.")
     parser.add_argument("--network", action="append", help="List of networks in order that this node belongs to.")
     parser.add_argument("--ifname", default=WG_IFNAME, help="Wireguard interface name.")
+    parser.add_argument("--port", default=51820, type=int, help="Wireguard listen port.")
     parser.add_argument('--verbose', "-v", action='count', default=0, help="Increase log verbosity.")
 
     args = parser.parse_args()
@@ -242,6 +248,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=level)
 
 
-    nm = NodeManager(args.name, args.ip, args.network, args.private_key, args.ifname)
+    nm = NodeManager(args.name, args.ip, args.network, args.private_key, wg_ifname=args.ifname, wg_listen_port=args.port)
+    nm.run()
 
-    # name: str, ip: str, networks: list[str], private_key: str, wg_ifname=WG_IFNAME
+    nm.srv.join()

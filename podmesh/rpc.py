@@ -1,8 +1,9 @@
-from socket import socket
 import json
-import cattrs
-from threading import Thread
 from collections.abc import Generator
+from socket import socket
+from threading import Thread
+
+import cattrs
 
 MAX_BUFSIZE = 4096
 
@@ -18,7 +19,10 @@ class SocketDelimiter(object):
         write_idx = 0
 
         while True:
-            numbytes = self.socket.recv_into(mview[write_idx:], len(buffer)-write_idx)
+            try:
+                numbytes = self.socket.recv_into(mview[write_idx:], len(buffer)-write_idx)
+            except TimeoutError:
+                continue
             if numbytes == 0:
                 break
             if numbytes + write_idx >= len(buffer):
